@@ -1,0 +1,19 @@
+{
+  "name": "bharatbridge-backend",
+  "version": "1.0.0",
+  "description": "BharatBridge Node.js / TypeScript Remittance Engine Backend",
+  "main": "src/server.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "ts-node src/server.ts",
+    "dev": "ts-node-dev --respawn src/server.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.4.5"
+  }
+}

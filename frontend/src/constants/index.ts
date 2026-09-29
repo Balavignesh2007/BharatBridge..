@@ -1,0 +1,164 @@
+// BharatBridge Contract ABIs and Addresses
+// Connected to Polkadot Asset Hub / Local Hardhat
+
+export interface NetworkConfig {
+    chainId: string;
+    chainName: string;
+    rpcUrls: string[];
+    nativeCurrency: { name: string; symbol: string; decimals: number };
+    blockExplorerUrls?: string[];
+}
+
+export const NETWORKS: Record<string, NetworkConfig> = {
+    polkadotHub: {
+        chainId: '0xD0A',
+        chainName: 'Polkadot Hub',
+        rpcUrls: ['https://polkadot-asset-hub-eth-rpc.polkadot.io'],
+        nativeCurrency: { name: 'DOT', symbol: 'DOT', decimals: 18 },
+        blockExplorerUrls: ['https://assethub-polkadot.subscan.io'],
+    },
+    westend: {
+        chainId: '0x190F2A65',
+        chainName: 'Westend Asset Hub',
+        rpcUrls: ['https://westend-asset-hub-eth-rpc.polkadot.io'],
+        nativeCurrency: { name: 'WND', symbol: 'WND', decimals: 18 },
+        blockExplorerUrls: ['https://assethub-westend.subscan.io'],
+    },
+    localhost: {
+        chainId: '0x7A69',
+        chainName: 'Localhost',
+        rpcUrls: ['http://127.0.0.1:8545'],
+        nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+    },
+};
+
+export const DEFAULT_NETWORK = 'localhost';
+
+// Contract addresses from deployments.json / fallback
+export const CONTRACTS = {
+    BharatBridge: '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9',
+    Remyra: '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9',
+    FXOracle: '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9',
+    MockUSDT: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+    MockUSDC: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
+};
+
+// Supported tokens
+export interface Token {
+    symbol: string;
+    name: string;
+    decimals: number;
+    icon: string;
+}
+
+export const TOKENS: Token[] = [
+    { symbol: 'USDT', name: 'Tether USD (Native Asset Hub)', decimals: 6, icon: '$' },
+    { symbol: 'USDC', name: 'USD Coin (Native Asset Hub)', decimals: 6, icon: '¢' },
+];
+
+// Destination chains (parachains via XCM)
+export interface DestChain {
+    id: number;
+    name: string;
+    icon: string;
+}
+
+export const DEST_CHAINS: DestChain[] = [
+    { id: 0, name: 'Polkadot Asset Hub (Same Chain Settlement)', icon: '●' },
+    { id: 2004, name: 'Moonbeam Parachain (XCM)', icon: '◐' },
+    { id: 2006, name: 'Astar Parachain (XCM)', icon: '★' },
+    { id: 2034, name: 'Hydration Parachain (XCM)', icon: '◇' },
+    { id: 2030, name: 'Bifrost Parachain (XCM)', icon: '⟐' },
+];
+
+// Supported Remittance Corridors
+export interface CorridorConfig {
+    from: string;
+    to: string;
+    country: string;
+    rate: number;
+}
+
+export const CORRIDORS: CorridorConfig[] = [
+    { from: 'USD', to: 'INR', country: 'IN — India', rate: 84.50 },
+    { from: 'GBP', to: 'INR', country: 'GB — UK', rate: 107.20 },
+    { from: 'EUR', to: 'INR', country: 'EU — Europe', rate: 91.80 },
+    { from: 'AED', to: 'INR', country: 'AE — UAE', rate: 23.01 },
+    { from: 'SGD', to: 'INR', country: 'SG — Singapore', rate: 62.80 },
+    { from: 'CAD', to: 'INR', country: 'CA — Canada', rate: 61.50 },
+    { from: 'AUD', to: 'INR', country: 'AU — Australia', rate: 54.90 },
+    { from: 'JPY', to: 'INR', country: 'JP — Japan', rate: 0.56 },
+];
+
+// Fee comparison data for remittances
+export interface FeeComparison {
+    provider: string;
+    fee: number;
+    feePercent: number;
+    speed: string;
+    color: string;
+    isUs?: boolean;
+}
+
+export const FEE_COMPARISON: FeeComparison[] = [
+    {
+        provider: 'Western Union',
+        fee: 53.00,
+        feePercent: 5.30,
+        speed: '3–5 days',
+        color: '#f59e0b',
+    },
+    {
+        provider: 'MoneyGram',
+        fee: 38.00,
+        feePercent: 3.80,
+        speed: '2–3 days',
+        color: '#f97316',
+    },
+    {
+        provider: 'Wise',
+        fee: 12.00,
+        feePercent: 1.20,
+        speed: '1–2 days',
+        color: '#38bdf8',
+    },
+    {
+        provider: 'BharatBridge 🇮🇳',
+        fee: 3.00,
+        feePercent: 0.30,
+        speed: 'Instant (< 12s)',
+        color: '#10b981',
+        isUs: true,
+    },
+];
+
+// Core BharatBridge ABIs
+export const BHARATBRIDGE_ABI = [
+    'function sendRemittance(address tokenIn, uint256 amount, address recipient, string destCurrency) returns (uint256)',
+    'function sendCrossChainRemittance(address tokenIn, uint256 amount, address recipient, uint32 destChainId, string destCurrency) returns (uint256)',
+    'function estimateRemittance(address tokenIn, uint256 amount, string destCurrency) view returns (uint256 amountOut, uint256 fee)',
+    'function getRemittance(uint256 id) view returns (tuple(uint256 id, address sender, address recipient, address tokenIn, uint256 amountIn, uint256 amountOut, uint256 fee, uint32 destChainId, string destCurrency, uint256 timestamp, uint8 status))',
+    'function getUserRemittances(address user) view returns (uint256[])',
+    'function getStats() view returns (uint256 volume, uint256 fees, uint256 remittanceCount, uint256 supportedTokenCount)',
+    'function getSupportedTokens() view returns (address[])',
+    'event RemittanceSent(uint256 indexed id, address indexed sender, address indexed recipient, address tokenIn, uint256 amountIn, uint256 amountOut, uint256 fee, uint32 destChainId)',
+    'event CrossChainTransferInitiated(uint256 indexed remittanceId, uint32 indexed destChainId, bytes xcmMessage)',
+];
+
+export const REMYRA_ABI = BHARATBRIDGE_ABI;
+
+export const ERC20_ABI = [
+    'function approve(address spender, uint256 amount) returns (bool)',
+    'function allowance(address owner, address spender) view returns (uint256)',
+    'function balanceOf(address account) view returns (uint256)',
+    'function decimals() view returns (uint8)',
+    'function symbol() view returns (string)',
+    'function faucet()',
+];
+
+export const FX_ORACLE_ABI = [
+    'function getRate(string from, string to) view returns (uint256 rate, uint256 updatedAt)',
+    'function convert(string from, string to, uint256 amountIn) view returns (uint256 amountOut, uint256 fee)',
+    'function calculateFee(uint256 amount) view returns (uint256 fee, uint256 feeBps)',
+    'function baseFee() view returns (uint256)',
+];

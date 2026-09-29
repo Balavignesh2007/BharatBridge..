@@ -1,0 +1,16 @@
+{
+  "name": "bharatbridge-contracts",
+  "version": "1.0.0",
+  "description": "BharatBridge Solidity 0.8.24 Smart Contracts & Hardhat Suite",
+  "scripts": {
+    "compile": "npx hardhat compile",
+    "test": "npx hardhat test"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.0"
+  }
+}
