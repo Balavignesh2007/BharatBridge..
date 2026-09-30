@@ -20,8 +20,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * with "PVM-RUST-CALL" comments throughout the code.
  *
  * Rust library signature (PVM):
- *   fn get_exchange_rate(from: &str, to: &str) -> u64
- *   fn calculate_optimal_route(input: u64, path: &[u8]) -> u64
+ *    fn get_exchange_rate(from: &str, to: &str) -> u64
+ *    fn calculate_optimal_route(input: u64, path: &[u8]) -> u64
  */
 contract FXOracle is Ownable {
     /// @notice Exchange rate with 18 decimal precision
@@ -38,6 +38,9 @@ contract FXOracle is Ownable {
         uint256 estimatedOutput; // Estimated output amount
         uint256 totalFee;       // Total fee in basis points
     }
+
+    /// @notice Maximum allowed period before a rate feed is considered stale (1 hour)
+    uint256 public constant MAX_STALE_PERIOD = 1 hours;
 
     /// @notice Currency pair key => Rate data
     mapping(bytes32 => Rate) public rates;
@@ -119,6 +122,9 @@ contract FXOracle is Ownable {
         bytes32 key = _pairKey(from, to);
         Rate storage r = rates[key];
         require(r.active, "FXOracle: pair not supported");
+        
+        // AUDIT FIX: Verify rate is not stale
+        require(block.timestamp - r.updatedAt <= MAX_STALE_PERIOD, "FXOracle: rate is stale");
 
         // Calculate fee
         fee = (amountIn * baseFee) / 10_000;
