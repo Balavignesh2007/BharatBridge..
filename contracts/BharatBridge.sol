@@ -11,33 +11,22 @@ import "./FXOracle.sol";
 /**
  * @title BharatBridge
  * @notice India-First Cross-Border Remittance & Settlement Platform on Polkadot PVM
- * @dev BharatBridge enables sub-1% fee cross-border remittances connecting India to the world.
- *      Architecture highlights:
- *      1. Transparent FX conversion via FXOracle
- *      2. Native stablecoin settlement (USDT / USDC) on Polkadot Asset Hub
- *      3. XCM cross-chain settlement abstraction via precompile 0x...0803
- *      4. Transparent on-chain remittance lifecycle tracking
  */
 contract BharatBridge is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // --- State ---
 
-    /// @notice FX Oracle for rate calculations
     FXOracle public oracle;
 
-    /// @notice XCM Precompile for cross-chain transfers
     IXcmPrecompile public constant XCM_PRECOMPILE =
         IXcmPrecompile(0x0000000000000000000000000000000000000803);
 
-    /// @notice Supported stablecoins
     mapping(address => bool) public supportedTokens;
     address[] public tokenList;
 
-    /// @notice Token symbol mapping for FX oracle lookups
     mapping(address => string) public tokenSymbol;
 
-    /// @notice Remittance record
     struct Remittance {
         uint256 id;
         address sender;
@@ -59,23 +48,14 @@ contract BharatBridge is Ownable, ReentrancyGuard {
         Failed
     }
 
-    /// @notice All remittances by ID
     mapping(uint256 => Remittance) public remittances;
     uint256 public nextRemittanceId;
 
-    /// @notice User remittance history
     mapping(address => uint256[]) public userRemittances;
-
-    /// @notice Liquidity pool balances per token
     mapping(address => uint256) public liquidityPool;
 
-    /// @notice Total volume processed
     uint256 public totalVolumeUSD;
-
-    /// @notice Total fees collected
     uint256 public totalFeesCollected;
-
-    /// @notice Total remittances count
     uint256 public totalRemittances;
 
     // --- Events ---
@@ -99,6 +79,7 @@ contract BharatBridge is Ownable, ReentrancyGuard {
         bytes xcmMessage
     );
 
+    event RemittanceRefunded(uint256 indexed remittanceId, address indexed sender, uint256 amount);
     event LiquidityAdded(address indexed token, address indexed provider, uint256 amount);
     event LiquidityRemoved(address indexed token, address indexed provider, uint256 amount);
     event TokenAdded(address indexed token, string symbol);
@@ -106,6 +87,7 @@ contract BharatBridge is Ownable, ReentrancyGuard {
     // --- Constructor ---
 
     constructor(address _oracle) Ownable(msg.sender) {
+        require(_oracle != address(0), "BharatBridge: zero oracle");
         oracle = FXOracle(_oracle);
     }
 
@@ -125,6 +107,7 @@ contract BharatBridge is Ownable, ReentrancyGuard {
 
         string memory fromSymbol = tokenSymbol[tokenIn];
         (uint256 amountOut, uint256 fee) = oracle.convert(fromSymbol, destCurrency, amount);
+        require(amount > fee, "BharatBridge: amount lower than fee");
 
         remittanceId = nextRemittanceId++;
         remittances[remittanceId] = Remittance({
@@ -171,6 +154,7 @@ contract BharatBridge is Ownable, ReentrancyGuard {
 
         string memory fromSymbol = tokenSymbol[tokenIn];
         (uint256 amountOut, uint256 fee) = oracle.convert(fromSymbol, destCurrency, amount);
+        require(amount > fee, "BharatBridge: amount lower than fee");
 
         remittanceId = nextRemittanceId++;
         remittances[remittanceId] = Remittance({
@@ -192,12 +176,20 @@ contract BharatBridge is Ownable, ReentrancyGuard {
         bytes memory xcmMessage = _buildXcmTransferMessage(tokenIn, amount - fee, recipient, destChainId);
         bytes memory dest = _encodeParachainDest(destChainId);
 
+        bool xcmSuccess = false;
+
         try XCM_PRECOMPILE.send(dest, xcmMessage) returns (bool success) {
-            if (!success) {
-                remittances[remittanceId].status = RemittanceStatus.Failed;
-            }
+            xcmSuccess = success;
         } catch {
-            remittances[remittanceId].status = RemittanceStatus.Pending;
+            xcmSuccess = false;
+        }
+
+        if (!xcmSuccess) {
+            // Revert state and refund sender if XCM execution fails
+            remittances[remittanceId].status = RemittanceStatus.Failed;
+            IERC20(tokenIn).safeTransfer(msg.sender, amount);
+            emit RemittanceRefunded(remittanceId, msg.sender, amount);
+            return remittanceId;
         }
 
         liquidityPool[tokenIn] += fee;
@@ -211,12 +203,13 @@ contract BharatBridge is Ownable, ReentrancyGuard {
 
     function addLiquidity(address token, uint256 amount) external nonReentrant {
         require(supportedTokens[token], "BharatBridge: token not supported");
+        require(amount > 0, "BharatBridge: zero amount");
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         liquidityPool[token] += amount;
         emit LiquidityAdded(token, msg.sender, amount);
     }
 
-    function removeLiquidity(address token, uint256 amount) external onlyOwner {
+    function removeLiquidity(address token, uint256 amount) external onlyOwner nonReentrant {
         require(liquidityPool[token] >= amount, "BharatBridge: insufficient liquidity");
         liquidityPool[token] -= amount;
         IERC20(token).safeTransfer(msg.sender, amount);
@@ -259,6 +252,7 @@ contract BharatBridge is Ownable, ReentrancyGuard {
     // --- Admin ---
 
     function addToken(address token, string calldata symbol) external onlyOwner {
+        require(token != address(0), "BharatBridge: zero address");
         require(!supportedTokens[token], "BharatBridge: token already added");
         supportedTokens[token] = true;
         tokenSymbol[token] = symbol;
@@ -267,6 +261,7 @@ contract BharatBridge is Ownable, ReentrancyGuard {
     }
 
     function setOracle(address _oracle) external onlyOwner {
+        require(_oracle != address(0), "BharatBridge: zero address");
         oracle = FXOracle(_oracle);
     }
 
