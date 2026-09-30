@@ -1,4 +1,4 @@
-"use client";
+"u"use client";
 
 import { useState, useEffect, useCallback } from 'react';
 import { Contract, parseUnits, formatUnits } from 'ethers';
@@ -42,21 +42,27 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
     const [balance, setBalance] = useState<string | null>(null);
     const [faucetLoading, setFaucetLoading] = useState(false);
 
-    // --- Derived values (client-side fallback) ---
+    // Safe mathematical calculations avoiding floating point bugs
+    const parseSafeFloat = (val: string) => {
+        const parsed = parseFloat(val);
+        return isNaN(parsed) ? 0 : parsed;
+    };
+
+    const numAmount = parseSafeFloat(amount);
     const selectedCorridor = CORRIDORS.find(c => c.to === corridor) || CORRIDORS[0];
-    const fee = amount ? (parseFloat(amount) * 0.003).toFixed(2) : '0.00';
-    const amountAfterFee = amount ? (parseFloat(amount) - parseFloat(fee)).toFixed(2) : '0.00';
-    const convertedAmount = amount ? (parseFloat(amountAfterFee) * selectedCorridor.rate).toFixed(2) : '0.00';
+    
+    const rawFee = numAmount * 0.003;
+    const fee = numAmount > 0 ? rawFee.toFixed(2) : '0.00';
+    const amountAfterFee = numAmount > 0 ? (numAmount - rawFee) : 0;
+    const convertedAmount = numAmount > 0 ? (amountAfterFee * selectedCorridor.rate).toFixed(2) : '0.00';
 
-    const traditionalFee = amount ? (parseFloat(amount) * 0.053).toFixed(2) : '0.00';
-    const savings = amount ? (parseFloat(traditionalFee) - parseFloat(fee)).toFixed(2) : '0.00';
+    const traditionalFee = numAmount > 0 ? (numAmount * 0.053) : 0;
+    const savings = numAmount > 0 ? (traditionalFee - rawFee).toFixed(2) : '0.00';
 
-    // --- Get token contract address ---
     const getTokenAddress = useCallback(() => {
         return token === 'USDT' ? CONTRACTS.MockUSDT : CONTRACTS.MockUSDC;
     }, [token]);
 
-    // --- Fetch balance ---
     const fetchBalance = useCallback(async () => {
         if (!wallet.signer || !wallet.account) {
             setBalance(null);
@@ -64,10 +70,13 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
         }
         try {
             const tokenContract = new Contract(getTokenAddress(), ERC20_ABI, wallet.signer);
-            const bal = await tokenContract.balanceOf(wallet.account);
-            const decimals = await tokenContract.decimals();
+            const [bal, decimals] = await Promise.all([
+                tokenContract.balanceOf(wallet.account),
+                tokenContract.decimals()
+            ]);
             setBalance(formatUnits(bal, decimals));
-        } catch {
+        } catch (err) {
+            console.error("Failed to fetch balance:", err);
             setBalance(null);
         }
     }, [wallet.signer, wallet.account, getTokenAddress]);
@@ -76,10 +85,10 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
         fetchBalance();
     }, [fetchBalance, token]);
 
-    // --- Faucet ---
     const handleFaucet = async () => {
         if (!wallet.signer) return;
         setFaucetLoading(true);
+        setErrorMsg('');
         try {
             const tokenContract = new Contract(getTokenAddress(), ERC20_ABI, wallet.signer);
             const tx = await tokenContract.faucet();
@@ -87,19 +96,20 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
             await fetchBalance();
         } catch (err: any) {
             console.error('Faucet error:', err);
+            setErrorMsg('Faucet request failed');
+            setTxStep('error');
         } finally {
             setFaucetLoading(false);
         }
     };
 
-    // --- Send remittance ---
     const handleSend = async () => {
         if (!wallet.isConnected) {
             wallet.connectWallet();
             return;
         }
 
-        if (!amount || parseFloat(amount) <= 0) return;
+        if (!amount || parseSafeFloat(amount) <= 0) return;
         if (!recipient) {
             setErrorMsg('Please enter a recipient address');
             setTxStep('error');
@@ -115,18 +125,17 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
             const tokenContract = new Contract(tokenAddress, ERC20_ABI, wallet.signer!);
             const remyraContract = new Contract(CONTRACTS.BharatBridge, REMYRA_ABI, wallet.signer!);
 
-            // Get decimals and parse amount
             const decimals = await tokenContract.decimals();
             const amountParsed = parseUnits(amount, decimals);
 
-            // Step 1: Check allowance and approve if needed
+            // Step 1: Allowance & Approval
             const currentAllowance = await tokenContract.allowance(wallet.account, CONTRACTS.BharatBridge);
             if (currentAllowance < amountParsed) {
                 const approveTx = await tokenContract.approve(CONTRACTS.BharatBridge, amountParsed);
                 await approveTx.wait();
             }
 
-            // Step 2: Send remittance
+            // Step 2: Send Remittance
             setTxStep('sending');
             let tx;
             if (destChain > 0) {
@@ -141,24 +150,28 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
 
             const receipt = await tx.wait();
 
-            // Step 3: Parse the RemittanceSent event
+            // Step 3: Parse Logs safely from target contract
             let remittanceId = '0';
             let feeActual = fee;
             let convertedActual = convertedAmount;
 
             for (const log of receipt.logs) {
+                if (log.address.toLowerCase() !== CONTRACTS.BharatBridge.toLowerCase()) {
+                    continue;
+                }
                 try {
                     const parsed = remyraContract.interface.parseLog({
-                        topics: log.topics as string[],
+                        topics: [...log.topics],
                         data: log.data,
                     });
                     if (parsed && parsed.name === 'RemittanceSent') {
                         remittanceId = parsed.args[0].toString();
-                        feeActual = formatUnits(parsed.args[6], decimals);
                         convertedActual = formatUnits(parsed.args[5], decimals);
+                        feeActual = formatUnits(parsed.args[6], decimals);
+                        break;
                     }
                 } catch {
-                    // skip non-matching logs
+                    // Ignore decoding issues on irrelevant logs
                 }
             }
 
@@ -176,7 +189,6 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
                 txHash: receipt.hash,
             });
 
-            // Refresh balance
             await fetchBalance();
 
         } catch (err: any) {
@@ -206,7 +218,6 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
             <p className={styles.subtitle}>Transfer stablecoins globally with sub-1% fees using Polkadot&apos;s XCM</p>
 
             <div className={styles.grid}>
-                {/* Send Form */}
                 <div className={`glass-card ${styles.formCard}`}>
                     <div className={styles.formHeader}>
                         <span className={styles.formIcon}>⇄</span>
@@ -214,7 +225,6 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
                     </div>
 
                     <div className={styles.formBody}>
-                        {/* Token Select + Balance */}
                         <div className="input-group">
                             <div className={styles.tokenLabelRow}>
                                 <label>Token</label>
@@ -237,7 +247,6 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
                                     </button>
                                 ))}
                             </div>
-                            {/* Faucet button */}
                             {wallet.isConnected && (
                                 <button
                                     type="button"
@@ -250,7 +259,6 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
                             )}
                         </div>
 
-                        {/* Amount */}
                         <div className="input-group">
                             <label>Amount (USD)</label>
                             <div className={styles.amountWrap}>
@@ -266,7 +274,6 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
                             </div>
                         </div>
 
-                        {/* Corridor */}
                         <div className="input-group">
                             <label>Destination Currency</label>
                             <select
@@ -282,7 +289,6 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
                             </select>
                         </div>
 
-                        {/* Destination Chain */}
                         <div className="input-group">
                             <label>Destination Chain</label>
                             <select
@@ -298,7 +304,6 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
                             </select>
                         </div>
 
-                        {/* Recipient */}
                         <div className="input-group">
                             <label>Recipient Address</label>
                             <input
@@ -310,14 +315,12 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
                             />
                         </div>
 
-                        {/* Error Message */}
                         {txStep === 'error' && errorMsg && (
                             <div className={styles.errorBox}>
                                 <span>⚠</span> {errorMsg}
                             </div>
                         )}
 
-                        {/* Step Progress */}
                         {(txStep === 'approving' || txStep === 'sending') && (
                             <div className={styles.stepProgress}>
                                 <div className={`${styles.stepDot} ${txStep === 'approving' ? styles.stepActive : styles.stepDone}`}>
@@ -332,7 +335,6 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
                             </div>
                         )}
 
-                        {/* Send Button */}
                         <button
                             type="button"
                             className={`btn btn-primary ${styles.sendBtn}`}
@@ -352,7 +354,6 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
                     </div>
                 </div>
 
-                {/* Fee Breakdown Card */}
                 <div className={styles.rightCol}>
                     <div className={`glass-card ${styles.feeCard}`}>
                         <div className={styles.feeHeader}>
@@ -379,7 +380,7 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
                             </div>
                         </div>
 
-                        {amount && parseFloat(amount) > 0 && (
+                        {numAmount > 0 && (
                             <div className={styles.savingsBox}>
                                 <span className={styles.savingsIcon}>△</span>
                                 <div>
@@ -390,7 +391,6 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
                         )}
                     </div>
 
-                    {/* Tech Stack Badge */}
                     <div className={`glass-card ${styles.techCard}`}>
                         <h4 className={styles.techTitle}>Powered by Polkadot PVM</h4>
                         <div className={styles.techBadges}>
@@ -402,7 +402,6 @@ export default function SendRemittance({ wallet }: SendRemittanceProps) {
                 </div>
             </div>
 
-            {/* Transaction Result Modal */}
             {txResult && (
                 <div className={styles.modal} onClick={resetTx}>
                     <div className={`glass-card ${styles.modalContent}`} onClick={(e) => e.stopPropagation()}>
