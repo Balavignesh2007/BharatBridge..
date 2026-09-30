@@ -7,7 +7,7 @@ import Footer from '../../components/Footer';
 import { useWallet } from '../../hooks/useWallet';
 import { TransactionService } from '../../services/transactionService';
 import { CorridorService } from '../../services/corridorService';
-import { Transaction, Corridor } from '../../types';
+import { Transaction, Corridor, getCurrencySymbol } from '../../types';
 
 export default function DashboardPage() {
     const wallet = useWallet();
@@ -176,10 +176,10 @@ export default function DashboardPage() {
                                             </td>
                                             <td>
                                                 <div className="num-mono" style={{ fontWeight: 700 }}>
-                                                    {tx.sourceAmount.toLocaleString()} {tx.sourceCurrency}
+                                                    {getCurrencySymbol(tx.sourceCurrency)}{tx.sourceAmount.toLocaleString()} {tx.sourceCurrency}
                                                 </div>
                                                 <div className="num-mono" style={{ fontSize: '0.75rem', color: '#16a34a' }}>
-                                                    ≈ {tx.destCurrency === 'INR' ? '₹' : ''}{tx.destAmount.toLocaleString()} {tx.destCurrency}
+                                                    ≈ {getCurrencySymbol(tx.destCurrency)}{tx.destAmount.toLocaleString()} {tx.destCurrency}
                                                 </div>
                                             </td>
                                             <td>

@@ -7,7 +7,7 @@ import Footer from '../../components/Footer';
 import { useWallet } from '../../hooks/useWallet';
 import { TransactionService } from '../../services/transactionService';
 import { CorridorService } from '../../services/corridorService';
-import { Transaction, Corridor } from '../../types';
+import { Transaction, Corridor, getCurrencySymbol } from '../../types';
 
 export default function TransactionsPage() {
     const wallet = useWallet();
@@ -166,17 +166,17 @@ export default function TransactionsPage() {
                                         </td>
                                         <td>
                                             <div className="num-mono" style={{ fontWeight: 700 }}>
-                                                ${tx.sourceAmount.toLocaleString()} {tx.sourceCurrency}
+                                                {getCurrencySymbol(tx.sourceCurrency)}{tx.sourceAmount.toLocaleString()} {tx.sourceCurrency}
                                             </div>
                                             <div className="num-mono" style={{ fontSize: '0.75rem', color: '#16a34a' }}>
-                                                ≈ {tx.destCurrency === 'INR' ? '₹' : ''}{tx.destAmount.toLocaleString()} {tx.destCurrency}
+                                                ≈ {getCurrencySymbol(tx.destCurrency)}{tx.destAmount.toLocaleString()} {tx.destCurrency}
                                             </div>
                                         </td>
                                         <td className="num-mono" style={{ fontSize: '0.82rem' }}>
                                             1 {tx.sourceCurrency} = {tx.fxRate.toFixed(2)}
                                         </td>
                                         <td className="num-mono" style={{ fontSize: '0.82rem', color: '#475569' }}>
-                                            ${tx.fee.toFixed(2)}
+                                            {getCurrencySymbol(tx.sourceCurrency)}{tx.fee.toFixed(2)}
                                         </td>
                                         <td>
                                             <span className={`badge badge-${tx.risk.level.toLowerCase()}`}>

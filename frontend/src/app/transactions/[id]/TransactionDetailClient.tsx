@@ -6,7 +6,7 @@ import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
 import { useWallet } from '../../../hooks/useWallet';
 import { TransactionService } from '../../../services/transactionService';
-import { Transaction } from '../../../types';
+import { Transaction, getCurrencySymbol } from '../../../types';
 
 interface Props {
     id: string;
@@ -152,13 +152,13 @@ export default function TransactionDetailClient({ id: txId }: Props) {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
                                     <span style={{ color: '#64748b', fontSize: '0.88rem' }}>Source Amount</span>
                                     <span className="num-mono" style={{ fontWeight: 700 }}>
-                                        ${tx.sourceAmount.toLocaleString()} {tx.sourceCurrency}
+                                        {getCurrencySymbol(tx.sourceCurrency)}{tx.sourceAmount.toLocaleString()} {tx.sourceCurrency}
                                     </span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
                                     <span style={{ color: '#64748b', fontSize: '0.88rem' }}>Protocol Fee (0.30%)</span>
                                     <span className="num-mono" style={{ fontWeight: 700, color: '#dc2626' }}>
-                                        -${tx.fee.toFixed(2)} {tx.sourceCurrency}
+                                        -{getCurrencySymbol(tx.sourceCurrency)}{tx.fee.toFixed(2)} {tx.sourceCurrency}
                                     </span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
@@ -170,7 +170,7 @@ export default function TransactionDetailClient({ id: txId }: Props) {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 4 }}>
                                     <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Recipient Receives</span>
                                     <span className="num-mono" style={{ fontWeight: 800, fontSize: '1.3rem', color: '#16a34a' }}>
-                                        {tx.destCurrency === 'INR' ? '₹' : ''}{tx.destAmount.toLocaleString()} {tx.destCurrency}
+                                        {getCurrencySymbol(tx.destCurrency)}{tx.destAmount.toLocaleString()} {tx.destCurrency}
                                     </span>
                                 </div>
                             </div>

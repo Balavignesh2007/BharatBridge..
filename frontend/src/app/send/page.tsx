@@ -9,7 +9,7 @@ import { useWallet } from '../../hooks/useWallet';
 import { CorridorService } from '../../services/corridorService';
 import { FXService } from '../../services/fxService';
 import { TransactionService } from '../../services/transactionService';
-import { Currency, Direction, Corridor, Transaction } from '../../types';
+import { Currency, Direction, Corridor, Transaction, getCurrencySymbol } from '../../types';
 
 interface RemittanceReceipt {
     receiptNumber: string;
@@ -88,6 +88,21 @@ function SendContent() {
         setDestChainId(0);
         setReceipt(null);
         setErrorMessage(null);
+    };
+
+    const handleDirectionChange = (newDirection: Direction) => {
+        setDirection(newDirection);
+        if (newDirection === 'INDIA_TO_GLOBAL') {
+            setPayoutType('BANK_TRANSFER');
+            setRecipientIdentifier('US89370400440532013000');
+            setBankName('JPMorgan Chase Bank');
+            setRecipientName('Alex Johnson');
+        } else {
+            setPayoutType('UPI');
+            setRecipientIdentifier('priya.sharma@okaxis');
+            setBankName('State Bank of India');
+            setRecipientName('Priya Sharma');
+        }
     };
 
     // Submit transfer to backend
@@ -272,10 +287,10 @@ function SendContent() {
                                 Total Amount Credited to Beneficiary
                             </div>
                             <div className="num-mono" style={{ fontSize: '2.6rem', fontWeight: 900, color: '#10b981', marginTop: 4, letterSpacing: '-0.02em' }}>
-                                {receipt.destCurrency === 'INR' ? '₹' : ''}{receipt.recipientAmount.toLocaleString()} {receipt.destCurrency}
+                                {getCurrencySymbol(receipt.destCurrency)}{receipt.recipientAmount.toLocaleString()} {receipt.destCurrency}
                             </div>
                             <div style={{ fontSize: '0.88rem', color: '#475569', marginTop: 6 }}>
-                                Converted from <strong>${receipt.sourceAmount.toLocaleString()} {receipt.sourceCurrency}</strong> @ 1 {receipt.sourceCurrency} = {receipt.exchangeRate.toFixed(4)} {receipt.destCurrency}
+                                Converted from <strong>{getCurrencySymbol(receipt.sourceCurrency)}{receipt.sourceAmount.toLocaleString()} {receipt.sourceCurrency}</strong> @ 1 {receipt.sourceCurrency} = {receipt.exchangeRate.toFixed(4)} {receipt.destCurrency}
                             </div>
                         </div>
 
@@ -315,10 +330,10 @@ function SendContent() {
                                     FEE &amp; PRICING
                                 </div>
                                 <div className="num-mono" style={{ fontWeight: 800, fontSize: '0.92rem', color: '#0f172a', marginTop: 4 }}>
-                                    ${receipt.sourceAmount.toFixed(2)} {receipt.sourceCurrency}
+                                    {getCurrencySymbol(receipt.sourceCurrency)}{receipt.sourceAmount.toFixed(2)} {receipt.sourceCurrency}
                                 </div>
                                 <div style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 700 }}>
-                                    Protocol Fee (0.30%): -${receipt.feeCharged.toFixed(2)} {receipt.sourceCurrency}
+                                    Protocol Fee (0.30%): -{getCurrencySymbol(receipt.sourceCurrency)}{receipt.feeCharged.toFixed(2)} {receipt.sourceCurrency}
                                 </div>
                             </div>
 
@@ -420,7 +435,7 @@ function SendContent() {
                         }}>
                             <button
                                 type="button"
-                                onClick={() => setDirection('GLOBAL_TO_INDIA')}
+                                onClick={() => handleDirectionChange('GLOBAL_TO_INDIA')}
                                 style={{
                                     border: 'none',
                                     borderRadius: 9,
@@ -438,7 +453,7 @@ function SendContent() {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setDirection('INDIA_TO_GLOBAL')}
+                                onClick={() => handleDirectionChange('INDIA_TO_GLOBAL')}
                                 style={{
                                     border: 'none',
                                     borderRadius: 9,
@@ -483,7 +498,7 @@ function SendContent() {
                             <div className="input-label">
                                 <span>You Send</span>
                                 <span style={{ color: '#2563eb', fontWeight: 700 }}>
-                                    Protocol Fee: 0.30% (${fxQuote.fee.toFixed(2)} {sourceCurrency})
+                                    Protocol Fee: 0.30% ({getCurrencySymbol(sourceCurrency)}{fxQuote.fee.toFixed(2)} {sourceCurrency})
                                 </span>
                             </div>
                             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -494,7 +509,7 @@ function SendContent() {
                                     fontSize: '1.25rem',
                                     color: '#64748b',
                                 }}>
-                                    $
+                                    {getCurrencySymbol(sourceCurrency)}
                                 </span>
                                 <input
                                     type="number"
@@ -502,7 +517,7 @@ function SendContent() {
                                     style={{
                                         fontSize: '1.5rem',
                                         fontWeight: 800,
-                                        paddingLeft: 34,
+                                        paddingLeft: getCurrencySymbol(sourceCurrency).length > 2 ? 56 : 38,
                                         paddingRight: 80,
                                         color: '#0f172a',
                                     }}
@@ -555,7 +570,7 @@ function SendContent() {
                                     RECIPIENT RECEIVES
                                 </div>
                                 <div className="num-mono" style={{ fontSize: '1.6rem', fontWeight: 900, color: '#10b981' }}>
-                                    {destCurrency === 'INR' ? '₹' : ''}{fxQuote.recipientAmount.toLocaleString()} {destCurrency}
+                                    {getCurrencySymbol(destCurrency)}{fxQuote.recipientAmount.toLocaleString()} {destCurrency}
                                 </div>
                             </div>
                         </div>
@@ -586,8 +601,17 @@ function SendContent() {
                                         value={payoutType}
                                         onChange={(e) => setPayoutType(e.target.value as any)}
                                     >
-                                        <option value="UPI">UPI Instant Rail (Simulated)</option>
-                                        <option value="BANK_TRANSFER">IMPS / NEFT Direct (Simulated)</option>
+                                        {direction === 'GLOBAL_TO_INDIA' ? (
+                                            <>
+                                                <option value="UPI">UPI Instant Rail (Simulated)</option>
+                                                <option value="BANK_TRANSFER">IMPS / NEFT Direct (Simulated)</option>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <option value="BANK_TRANSFER">International Wire / SWIFT (Simulated)</option>
+                                                <option value="UPI">Domestic Rail (Simulated)</option>
+                                            </>
+                                        )}
                                     </select>
                                 </div>
                             </div>
@@ -595,14 +619,14 @@ function SendContent() {
                             <div className="grid-2">
                                 <div className="input-group">
                                     <label className="input-label">
-                                        {payoutType === 'UPI' ? 'UPI ID / VPA' : 'Bank Account / IBAN'}
+                                        {payoutType === 'UPI' ? 'UPI ID / VPA' : (direction === 'INDIA_TO_GLOBAL' ? 'IBAN / Swift / Routing #' : 'Bank Account / IBAN')}
                                     </label>
                                     <input
                                         type="text"
                                         className="input-field"
                                         value={recipientIdentifier}
                                         onChange={(e) => setRecipientIdentifier(e.target.value)}
-                                        placeholder={payoutType === 'UPI' ? 'username@bank' : 'A/C Number & IFSC'}
+                                        placeholder={payoutType === 'UPI' ? 'username@bank' : (direction === 'INDIA_TO_GLOBAL' ? 'IBAN / Account Number' : 'A/C Number & IFSC')}
                                         required
                                     />
                                 </div>
@@ -614,7 +638,7 @@ function SendContent() {
                                         className="input-field"
                                         value={bankName}
                                         onChange={(e) => setBankName(e.target.value)}
-                                        placeholder="State Bank of India / HDFC"
+                                        placeholder={direction === 'INDIA_TO_GLOBAL' ? 'e.g. JPMorgan Chase / Barclays' : 'State Bank of India / HDFC'}
                                         required
                                     />
                                 </div>
@@ -642,7 +666,7 @@ function SendContent() {
                                 {isProcessing ? (
                                     <span>⏳ Processing Transfer in Backend &amp; Generating Receipt...</span>
                                 ) : (
-                                    <span>🚀 Transfer ${numAmount.toLocaleString()} {sourceCurrency} → Generate Official Receipt</span>
+                                    <span>🚀 Transfer {getCurrencySymbol(sourceCurrency)}{numAmount.toLocaleString()} {sourceCurrency} → Generate Official Receipt</span>
                                 )}
                             </button>
                         </div>

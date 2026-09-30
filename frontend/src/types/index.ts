@@ -128,3 +128,19 @@ export interface PaymentRailResult {
     referenceNumber: string;
     isSimulated: boolean;
 }
+
+export const getCurrencySymbol = (currency?: string): string => {
+    switch (currency) {
+        case 'INR': return '₹';
+        case 'USD': return '$';
+        case 'EUR': return '€';
+        case 'GBP': return '£';
+        case 'AED': return 'AED ';
+        case 'SGD': return 'S$';
+        case 'CAD': return 'CA$';
+        case 'AUD': return 'A$';
+        case 'JPY': return '¥';
+        default: return '$';
+    }
+};
+
